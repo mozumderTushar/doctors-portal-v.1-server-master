@@ -1,26 +1,26 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const fileUpload = require('express-fileupload');
 const MongoClient = require('mongodb').MongoClient;
 require('dotenv').config()
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.jos17.mongodb.net/${process.env.DB_NAME}?retryWrites=true&w=majority`;
 
 
-
-
-
-
 const app = express()
 
 app.use(bodyParser.json());
 app.use(cors());
+app.use(express.static('doctors'));
+app.use(fileUpload());
 
 const port = 5000;
 
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 client.connect(err => {
     const appointmentCollection = client.db("doctorsPortal").collection("appointments");
+    const doctorCollection = client.db("doctorsPortal").collection("doctors");
     console.log("db connected");
 
     app.post('/addAppointment', (req, res) => {
@@ -33,11 +33,46 @@ client.connect(err => {
 
     app.post('/appointmentsByDate', (req, res) => {
         const date = req.body;
-        console.log(date);
-        appointmentCollection.find({date: date.date})
-        .toArray((err, documents) => {
-            res.send(documents)
+        const email = req.body.email;
+        doctorCollection.find({ email: email })
+            .toArray((err, doctors) => {
+                const filter = { date: date.date }
+                if (doctors.length === 0) {
+                    filter.email = email;
+                }
+                appointmentCollection.find(filter)
+                    .toArray((err, documents) => {
+                        console.log(email, date.date, doctors, documents)
+                        res.send(documents);
+                    })
+            })
+    })
+
+    app.post('/addADoctor', (req, res) => {
+        const file = req.files.file;
+
+        const name = req.body.name;
+        const email = req.body.email;
+        console.log(name, email, file)
+
+        file.mv(`${__dirname}/doctors/${file.name}`, err => {
+            if (err) {
+                console.log(err);
+                return res.status(500).send({ mdg: 'Filed to upload Img' })
+            }
+            doctorCollection.insertOne({ name, email, img: file.name })
+                .then(result => {
+                    res.send(result.insertedCount > 0)
+                })
+            // return res.send({name: file.name, path: `/${file.name}`})
         })
+    });
+
+    app.get('/doctors', (req, res) => {
+        doctorCollection.find({})
+            .toArray((err, documents) => {
+                res.send(documents);
+            })
     });
 
     app.get('/appointments', (req, res) => {
@@ -45,7 +80,8 @@ client.connect(err => {
             .toArray((err, documents) => {
                 res.send(documents);
             })
-    })
+    });
+
 });
 
 app.get('/', (req, res) => {
