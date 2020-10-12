@@ -53,33 +53,20 @@ client.connect(err => {
         const file = req.files.file;
         const name = req.body.name;
         const email = req.body.email;
-        const filePath = `${__dirname}/doctors/${file.name}`
+       
+        const newImg = file.data;
+        const encImg = newImg.toString('base64')
 
-        file.mv(filePath, err => {
-            if (err) {
-                console.log(err);
-                res.status(500).send({ mdg: 'Filed to upload Img' })
-            }
-            const newImg = fs.readFileSync(filePath)
-            const encImg = newImg.toString('base64')
+        var image = {
+            contentType: file.mimetype,
+            size: file.size,
+            img: Buffer.from(encImg, 'base64')
+        }
 
-            var image = {
-                contentType: req.files.file.mimetype,
-                size: req.files.file.size,
-                img: Buffer(encImg, 'base64')
-            }
-
-            doctorCollection.insertOne({ name, email, image })
-                .then(result => {
-                    fs.remove(filePath, error => {
-                        if (error) {
-                            console.log(error)
-                            res.status(500).send({ mdg: 'Filed to upload Img' })
-                        }
-                        res.send(result.insertedCount > 0)
-                    })
-                })
-        })
+        doctorCollection.insertOne({ name, email, image })
+            .then(result => {
+                res.send(result.insertedCount > 0)
+            })
     });
 
     app.post('/isDoctor', (req, res) => {
